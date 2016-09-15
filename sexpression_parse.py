@@ -82,12 +82,20 @@ def calcBounds(parseTree):
             continue
         start = findSectionExclusive("start", line)
         end = findSectionExclusive("end", line)
-        print start, end
+        #print start, end
         minx = float(min(minx, float(start[1]), float(end[1])))
         miny = float(min(miny, float(start[2]), float(end[2])))
         maxx = float(max(maxx, float(start[1]), float(end[1])))
         maxy = float(max(maxy, float(start[2]), float(end[2])))
     return round(minx, 2), round(miny, 2), round(maxx, 2), round(maxy, 2), round(abs(minx-maxx), 2), round(abs(maxy-miny), 2)
+
+
+def findSmallestTrace(parseTree):
+    traces = findSectionExhaustive("kicad_pcb.segment", parseTree)
+    minTraceWidth = 99999999999
+    for trace in traces[0]:
+        minTraceWidth = min(minTraceWidth, float(findSectionExclusive("width", trace)[1]))
+    return minTraceWidth
 
 if __name__ == "__main__":
     import sys
@@ -98,4 +106,5 @@ if __name__ == "__main__":
         #print p
         print "file made with Kicad " + findSectionExclusive("kicad_pcb.version", p)[1] + ".x"
         print "\t Board thickness " + findSectionExclusive("kicad_pcb.general.thickness", p)[1] + "mm"
+        print "\t Smallest Trace is " + str(findSmallestTrace(p)) + "mm"
         print calcBounds(p)
