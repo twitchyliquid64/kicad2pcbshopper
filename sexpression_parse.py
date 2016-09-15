@@ -1,5 +1,5 @@
 from string import whitespace
-
+import math
 atom_end = set('()"\'') | set(whitespace)
 
 #credit: mostly from https://gist.github.com/pib/240957
@@ -71,6 +71,37 @@ def findSectionExhaustive(searchTerm, parseTree):
                 output.append(findSectionExhaustive(futureTerm, element))
     return output
 
+def calcArcBounds(startx, starty, endx, endy, angle):
+    startx = startx/1000.0
+    starty = starty/1000.0
+    endx = endx/1000.0
+    endy = endy/1000.0
+    angle = math.radians(angle)
+    h = math.pow(startx - endx, 2) + math.pow(starty - endy, 2)
+    R = abs(h / (2*math.sin(angle/2)))
+
+    if angle <= math.pi/2:
+        top = endy
+        left = endx
+        bottom = starty
+        right = startx
+    elif angle <= math.pi:
+        top = starty - R
+        left = endx
+        bottom = starty
+        right = startx
+    elif angle <= 3*math.pi/2:
+        top = starty - R
+        left = startx - 2*R
+        bottom = endy
+        right = startx
+    else:
+        top = starty - R
+        left = startx - 2*R
+        bottom = starty + R
+        right = startx
+    return left*1000, top*1000, right*1000, bottom*1000
+
 def calcBounds(parseTree):
     minx = 99999999999
     miny = 99999999999
@@ -87,6 +118,18 @@ def calcBounds(parseTree):
         miny = float(min(miny, float(start[2]), float(end[2])))
         maxx = float(max(maxx, float(start[1]), float(end[1])))
         maxy = float(max(maxy, float(start[2]), float(end[2])))
+    graphicArcs = findSectionExhaustive("kicad_pcb.gr_arc", parseTree)
+    for arc in graphicArcs[0]:
+        if findSectionExclusive("layer", arc)[1][0] != "Edge.Cuts":
+            continue
+        start = findSectionExclusive("start", arc)
+        end = findSectionExclusive("end", arc)
+        ang = findSectionExclusive("angle", arc)
+        startx, starty, endx, endy = calcArcBounds(float(start[1]), float(start[2]), float(end[1]), float(end[2]), float(ang[1]))
+        minx = float(min(minx, startx, endx))
+        miny = float(min(miny, starty, endy))
+        maxx = float(max(maxx, startx, endx))
+        maxy = float(max(maxy, starty, endy))
     return round(minx, 2), round(miny, 2), round(maxx, 2), round(maxy, 2), round(abs(minx-maxx), 2), round(abs(maxy-miny), 2)
 
 
@@ -95,7 +138,19 @@ def findSmallestTrace(parseTree):
     minTraceWidth = 99999999999
     for trace in traces[0]:
         minTraceWidth = min(minTraceWidth, float(findSectionExclusive("width", trace)[1]))
+    if minTraceWidth == 99999999999:
+        return None
     return minTraceWidth
+
+def findSmallestDrill(parseTree):
+    vias = findSectionExhaustive("kicad_pcb.via", parseTree)
+    minDrillSize = 99999999999
+    for via in vias[0]:
+        minDrillSize = min(minDrillSize, float(findSectionExclusive("drill", via)[1]))
+    if minDrillSize == 99999999999:
+        return None
+    return minDrillSize
+
 
 if __name__ == "__main__":
     import sys
@@ -107,4 +162,5 @@ if __name__ == "__main__":
         print "file made with Kicad " + findSectionExclusive("kicad_pcb.version", p)[1] + ".x"
         print "\t Board thickness " + findSectionExclusive("kicad_pcb.general.thickness", p)[1] + "mm"
         print "\t Smallest Trace is " + str(findSmallestTrace(p)) + "mm"
+        print "\t Smallest Drill is " + str(findSmallestDrill(p)) + "mm"
         print calcBounds(p)
