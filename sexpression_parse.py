@@ -72,35 +72,42 @@ def findSectionExhaustive(searchTerm, parseTree):
     return output
 
 def calcArcBounds(startx, starty, endx, endy, angle):
-    startx = startx/1000.0
-    starty = starty/1000.0
-    endx = endx/1000.0
-    endy = endy/1000.0
+    startx = startx
+    starty = starty
+    endx = endx
+    endy = endy
+    print startx, starty, endx, endy, angle
     angle = math.radians(angle)
-    h = math.pow(startx - endx, 2) + math.pow(starty - endy, 2)
+    h = math.hypot(startx - endx, starty - endy) #math.pow(startx - endx, 2) + math.pow(starty - endy, 2)
     R = abs(h / (2*math.sin(angle/2)))
+    print R
 
-    if angle <= math.pi/2:
+    if angle <= (math.pi/2):
+        print "B1"
         top = endy
         left = endx
         bottom = starty
         right = startx
     elif angle <= math.pi:
+        print "B2"
         top = starty - R
         left = endx
         bottom = starty
         right = startx
-    elif angle <= 3*math.pi/2:
+    elif angle <= (3*math.pi/2):
+        print "B3"
         top = starty - R
         left = startx - 2*R
         bottom = endy
         right = startx
     else:
+        print "B4"
         top = starty - R
         left = startx - 2*R
         bottom = starty + R
         right = startx
-    return left*1000, top*1000, right*1000, bottom*1000
+    print left, top, right, bottom
+    return left, top, right, bottom
 
 def calcBounds(parseTree):
     minx = 99999999999
