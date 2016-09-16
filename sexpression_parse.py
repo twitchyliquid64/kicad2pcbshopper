@@ -71,72 +71,13 @@ def findSectionExhaustive(searchTerm, parseTree):
                 output.append(findSectionExhaustive(futureTerm, element))
     return output
 
-def calcArcBounds(startx, starty, endx, endy, angle):
-    startx = startx
-    starty = starty
-    endx = endx
-    endy = endy
-    print startx, starty, endx, endy, angle
-    angle = math.radians(angle)
-    h = math.hypot(startx - endx, starty - endy) #math.pow(startx - endx, 2) + math.pow(starty - endy, 2)
-    R = abs(h / (2*math.sin(angle/2)))
-    print R
-
-    if angle <= (math.pi/2):
-        print "B1"
-        top = endy
-        left = endx
-        bottom = starty
-        right = startx
-    elif angle <= math.pi:
-        print "B2"
-        top = starty - R
-        left = endx
-        bottom = starty
-        right = startx
-    elif angle <= (3*math.pi/2):
-        print "B3"
-        top = starty - R
-        left = startx - 2*R
-        bottom = endy
-        right = startx
-    else:
-        print "B4"
-        top = starty - R
-        left = startx - 2*R
-        bottom = starty + R
-        right = startx
-    print left, top, right, bottom
-    return left, top, right, bottom
-
 def calcBounds(parseTree):
-    minx = 99999999999
-    miny = 99999999999
-    maxx = -9999999999
-    maxy = -9999999999
-    graphicLines = findSectionExhaustive("kicad_pcb.gr_line", parseTree)
-    for line in graphicLines[0]:
-        if findSectionExclusive("layer", line)[1][0] != "Edge.Cuts":
-            continue
-        start = findSectionExclusive("start", line)
-        end = findSectionExclusive("end", line)
-        #print start, end
-        minx = float(min(minx, float(start[1]), float(end[1])))
-        miny = float(min(miny, float(start[2]), float(end[2])))
-        maxx = float(max(maxx, float(start[1]), float(end[1])))
-        maxy = float(max(maxy, float(start[2]), float(end[2])))
-    graphicArcs = findSectionExhaustive("kicad_pcb.gr_arc", parseTree)
-    for arc in graphicArcs[0]:
-        if findSectionExclusive("layer", arc)[1][0] != "Edge.Cuts":
-            continue
-        start = findSectionExclusive("start", arc)
-        end = findSectionExclusive("end", arc)
-        ang = findSectionExclusive("angle", arc)
-        startx, starty, endx, endy = calcArcBounds(float(start[1]), float(start[2]), float(end[1]), float(end[2]), float(ang[1]))
-        minx = float(min(minx, startx, endx))
-        miny = float(min(miny, starty, endy))
-        maxx = float(max(maxx, startx, endx))
-        maxy = float(max(maxy, starty, endy))
+    area = findSectionExclusive("kicad_pcb.general.area", p)
+    minx = float(area[1])
+    miny = float(area[2])
+    maxx = float(area[3])
+    maxy = float(area[4])
+
     return round(minx, 2), round(miny, 2), round(maxx, 2), round(maxy, 2), round(abs(minx-maxx), 2), round(abs(maxy-miny), 2)
 
 
@@ -160,14 +101,36 @@ def findSmallestDrill(parseTree):
 
 
 if __name__ == "__main__":
-    import sys
+    import sys, os
+
+    if len(sys.argv) < 2:
+        print "USAGE: kicad2pcbshopper <path-to-kicad_pcb-file.>"
+        os.exit(1)
+
+    if not sys.argv[1].endswith(".kicad_pcb"):
+        print "You must give the path to a .kicad_pcb file! if KiCad is giving you some other format (such as .brd) you are running an archaic version an should update to the latest stable!"
+        os.exit(1)
 
     with open(sys.argv[1], 'r') as myfile:
         data = myfile.read()
         p = parse(data)
         #print p
-        print "file made with Kicad " + findSectionExclusive("kicad_pcb.version", p)[1] + ".x"
-        print "\t Board thickness " + findSectionExclusive("kicad_pcb.general.thickness", p)[1] + "mm"
-        print "\t Smallest Trace is " + str(findSmallestTrace(p)) + "mm"
-        print "\t Smallest Drill is " + str(findSmallestDrill(p)) + "mm"
-        print calcBounds(p)
+        kicadVersion = findSectionExclusive("kicad_pcb.version", p)[1]
+        smallestTrace = findSmallestTrace(p)
+        smallestDrill = findSmallestDrill(p)
+        boardThickness = findSectionExclusive("kicad_pcb.general.thickness", p)[1]
+        startx, starty, endx, endy, width, height = calcBounds(p)
+        print "file made with Kicad " + kicadVersion + ".x"
+        print "\t Board thickness " + boardThickness + "mm"
+
+        if not smallestTrace:
+            print "\t Could not find any traces on the board. (WARN: Smallest trace unspecified)"
+        else:
+            print "\t Smallest Trace is " + str(findSmallestTrace(p)) + "mm"
+        if not smallestDrill:
+            print "\t Could not find any vias or drills on the board. (WARN: Smallest drill unspecified)"
+        else:
+            print "\t Smallest Drill is " + str(findSmallestDrill(p)) + "mm"
+
+        print ""
+        print "The board starts in euclidian space at (" + str(startx) + "," + str(starty) + "), giving dimensions of width=" + str(width)+ "mm, height=" + str(height) + "mm. This number includes the width of any primitives at the boards bounding box."
