@@ -1,3 +1,4 @@
+#!/usr/bin/python
 from string import whitespace
 import math
 atom_end = set('()"\'') | set(whitespace)
