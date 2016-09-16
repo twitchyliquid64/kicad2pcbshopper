@@ -80,6 +80,18 @@ def calcBounds(parseTree):
 
     return round(minx, 2), round(miny, 2), round(maxx, 2), round(maxy, 2), round(abs(minx-maxx), 2), round(abs(maxy-miny), 2)
 
+def findSmallestClearance(parseTree):
+    nets = findSectionExhaustive("kicad_pcb.net_class", parseTree)
+    netNameToClearance = dict()
+    for net in nets[0]:
+        netNameToClearance[net[1]] = float(findSectionExclusive("clearance", net)[1])
+    minClearance = 99999999999
+    smallestKey = "No clearances specified"
+    for key in netNameToClearance.keys():
+        if netNameToClearance[key] < minClearance:
+            smallestKey = key[0]
+            minClearance = netNameToClearance[key]
+    return minClearance, smallestKey
 
 def findSmallestTrace(parseTree):
     traces = findSectionExhaustive("kicad_pcb.segment", parseTree)
@@ -90,11 +102,27 @@ def findSmallestTrace(parseTree):
         return None
     return minTraceWidth
 
+def findSmallestAnnularRing(parseTree):
+    vias = findSectionExhaustive("kicad_pcb.via", parseTree)
+    minAnnularRingSize = 99999999999
+    for via in vias[0]:
+        minAnnularRingSize = min(minAnnularRingSize, float(findSectionExclusive("size", via)[1]) - float(findSectionExclusive("drill", via)[1]))
+    if minAnnularRingSize == 99999999999:
+        return None
+    return minAnnularRingSize
+
 def findSmallestDrill(parseTree):
     vias = findSectionExhaustive("kicad_pcb.via", parseTree)
     minDrillSize = 99999999999
     for via in vias[0]:
         minDrillSize = min(minDrillSize, float(findSectionExclusive("drill", via)[1]))
+    modules = findSectionExhaustive("kicad_pcb.module", parseTree)
+    for module in modules[0]:
+        pads = findSectionExhaustive("pad", module)
+        for pad in pads:
+            drill = findSectionExclusive("drill", pad)
+            if drill:
+                minDrillSize = min(minDrillSize, float(drill[1]))
     if minDrillSize == 99999999999:
         return None
     return minDrillSize
@@ -118,19 +146,29 @@ if __name__ == "__main__":
         kicadVersion = findSectionExclusive("kicad_pcb.version", p)[1]
         smallestTrace = findSmallestTrace(p)
         smallestDrill = findSmallestDrill(p)
+        smallestAnnularRing = findSmallestAnnularRing(p)
         boardThickness = findSectionExclusive("kicad_pcb.general.thickness", p)[1]
         startx, starty, endx, endy, width, height = calcBounds(p)
-        print "file made with Kicad " + kicadVersion + ".x"
+        clearance = findSmallestClearance(p)
+
+        print "File made with Kicad " + kicadVersion + ".x"
         print "\t Board thickness " + boardThickness + "mm"
 
         if not smallestTrace:
             print "\t Could not find any traces on the board. (WARN: Smallest trace unspecified)"
         else:
-            print "\t Smallest Trace is " + str(findSmallestTrace(p)) + "mm"
+            print "\t Smallest Trace is " + str(smallestTrace) + "mm"
         if not smallestDrill:
             print "\t Could not find any vias or drills on the board. (WARN: Smallest drill unspecified)"
         else:
-            print "\t Smallest Drill is " + str(findSmallestDrill(p)) + "mm"
+            print "\t Smallest Drill is " + str(smallestDrill) + "mm"
+        if not smallestAnnularRing:
+            print "\t Could not find any vias on the board. (WARN: Annular ring size unspecified)"
+        else:
+            print "\t Smallest Annular Ring is " + str(smallestAnnularRing) + "mm."
+        print "\t Smallest trace clearance is " + str(clearance[0]) + "mm. ('" + str(clearance[1]) + "' net class)"
+        print "\t Start point is (" + str(startx) + "," + str(starty) + ")"
+        print "\t width = " + str(width) + "mm, height = " + str(height) + "mm"
 
         print ""
-        print "The board starts in euclidian space at (" + str(startx) + "," + str(starty) + "), giving dimensions of width=" + str(width)+ "mm, height=" + str(height) + "mm. This number includes the width of any primitives at the boards bounding box."
+        print "Please make sure your board has no DRC errors before trusting this tool."
