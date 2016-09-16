@@ -136,7 +136,7 @@ if __name__ == "__main__":
         os.exit(1)
 
     if not sys.argv[1].endswith(".kicad_pcb"):
-        print "You must give the path to a .kicad_pcb file! if KiCad is giving you some other format (such as .brd) you are running an archaic version an should update to the latest stable!"
+        print "You must give the path to a .kicad_pcb file! if KiCad is giving you some other format (such as .brd) you are running an archaic version and should update to the latest stable!"
         os.exit(1)
 
     with open(sys.argv[1], 'r') as myfile:
@@ -170,5 +170,18 @@ if __name__ == "__main__":
         print "\t Start point is (" + str(startx) + "," + str(starty) + ")"
         print "\t width = " + str(width) + "mm, height = " + str(height) + "mm"
 
+        url = "http://pcbshopper.com?Width=" + str(width) + "&Height=" + str(height) + "&Units=mm"
+        if smallestTrace:
+            url += "&Trace=" + str(min(clearance, smallestTrace)) + "&TWUnits=mm"
+        else:
+            url += "&Trace=" + str(clearance) + "&TWUnits=mm"
+
+        if smallestDrill:
+            url += "&Drill=" + str(smallestDrill) + "&DrillUnits=mm"
+        url += "&Quantity=10&Referer=kicad2pcbshopper&GetPrices"
+
         print ""
         print "Please make sure your board has no DRC errors before trusting this tool."
+        import webbrowser, time
+        webbrowser.open(url, new=0, autoraise=True)
+        time.sleep(1)
