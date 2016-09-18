@@ -94,6 +94,27 @@ def findSmallestClearance(parseTree):
             minClearance = netNameToClearance[key]
     return minClearance, smallestKey
 
+def findNumLayersFromTraces(parseTree):
+    traces = findSectionExhaustive("kicad_pcb.segment", parseTree)
+    numLayers = 0
+    seenLayers = []
+    for trace in traces[0]:
+        layerName = findSectionExclusive("layer", trace)[1][0]
+        if layerName not in seenLayers:
+            seenLayers.append(layerName)
+            numLayers += 1
+    return numLayers, seenLayers
+
+def findNumSignalLayers(parseTree):
+    layers = findSectionExhaustive("kicad_pcb.layers", parseTree)
+    numLayers = 0
+    seenLayers = []
+    for layer in layers[0][0][1:]:
+        if layer[2][0] == "signal":
+            seenLayers.append(layer[1][0])
+            numLayers += 1
+    return numLayers, seenLayers
+
 def findSmallestTrace(parseTree):
     traces = findSectionExhaustive("kicad_pcb.segment", parseTree)
     minTraceWidth = 99999999999
@@ -133,12 +154,12 @@ if __name__ == "__main__":
     import sys, os
 
     if len(sys.argv) < 2:
-        print "USAGE: kicad2pcbshopper <path-to-kicad_pcb-file.>"
-        os.exit(1)
+        print "USAGE: kicad2pcbshopper <path-to-kicad_pcb-file>"
+        sys.exit(1)
 
     if not sys.argv[1].endswith(".kicad_pcb"):
         print "You must give the path to a .kicad_pcb file! if KiCad is giving you some other format (such as .brd) you are running an archaic version and should update to the latest stable!"
-        os.exit(1)
+        sys.exit(1)
 
     with open(sys.argv[1], 'r') as myfile:
         data = myfile.read()
@@ -150,6 +171,8 @@ if __name__ == "__main__":
         smallestAnnularRing = findSmallestAnnularRing(p)
         boardThickness = findSectionExclusive("kicad_pcb.general.thickness", p)[1]
         startx, starty, endx, endy, width, height = calcBounds(p)
+        numLayers, layers = findNumLayersFromTraces(p)
+        numSignalLayers, signalLayers = findNumSignalLayers(p)
         clearance = findSmallestClearance(p)
 
         print "File made with Kicad " + kicadVersion + ".x"
@@ -168,10 +191,13 @@ if __name__ == "__main__":
         else:
             print "\t Smallest Annular Ring is " + str(smallestAnnularRing) + "mm."
         print "\t Smallest trace clearance is " + str(clearance[0]) + "mm. ('" + str(clearance[1]) + "' net class)"
+        print "\t Traces were found on " + str(numLayers) + " layers (" + ','.join(layers) + ")."
+        print "\t Layer setup specifies " + str(numSignalLayers) + " signal layers (" + ','.join(signalLayers) + ")."
         print "\t Start point is (" + str(startx) + "," + str(starty) + ")"
         print "\t width = " + str(width) + "mm, height = " + str(height) + "mm"
 
-        url = "http://pcbshopper.com?Width=" + str(width) + "&Height=" + str(height) + "&Units=mm"
+
+        url = "http://pcbshopper.com?Width=" + str(width) + "&Height=" + str(height) + "&Units=mm" + "&Layers=" + str(numSignalLayers)
         if smallestTrace:
             url += "&Trace=" + str(min(clearance, smallestTrace)) + "&TWUnits=mm"
         else:
@@ -179,7 +205,7 @@ if __name__ == "__main__":
 
         if smallestDrill:
             url += "&Drill=" + str(smallestDrill) + "&DrillUnits=mm"
-        url += "&Quantity=10&Referer=kicad2pcbshopper&GetPrices"
+        url += "&Quantity=1&Referer=kicad2pcbshopper&GetPrices"
 
         print ""
         print "Please make sure your board has no DRC errors before trusting this tool."
